@@ -52,8 +52,25 @@ gh pr close <N> --delete-branch
 | E2E-14 | `14-third-party-thread` | Human replies in non-MergeWatch thread → no engagement | post-open UI |
 | E2E-15 | `15-mermaid-stress` | Complex diff → renderable Mermaid diagram | |
 | E2E-16 | `16-agent-authored` | PR from `claude/*` branch → flagged as agent-authored | |
+| E2E-17 | `17-grounding-hallucinated-anchor` | Comment-line anchor → grounding snaps or drops the finding | stochastic |
+| E2E-18 | `18a-introduce-criticals` → `18b-fix-criticals` | Two-step: criticals introduced → fix pushed → delta-aware green verdict | sequenced |
+| E2E-19 | `19-confidence-default-off` | No `XX%` confidence badges on a default install | |
+| E2E-20 | `20-description-drift` | PR description claims `localStorage` but diff uses memCache → reviewer flags drift | spot-check |
 
 Each `fixtures/<NN-name>/README.md` has the verification checklist for that card.
+
+## Two-step fixtures
+
+E2E-18 ships as two fixture directories sharing one branch (`fixture/18-delta-aware-verdict`):
+
+```bash
+./scripts/apply-fixture.sh 18a-introduce-criticals   # opens the PR with security holes
+# wait for first review (orange/red verdict)
+./scripts/apply-fixture.sh 18b-fix-criticals         # pushes fix to same branch, no new PR
+# wait for second review (should be green per delta-aware reconciliation)
+```
+
+`18b` uses the runner's `PUSH_TO_EXISTING_BRANCH` mode — it checks out the existing branch from origin, overlays the fix, and pushes a synchronize commit without opening a new PR.
 
 ## Smoke test (~5 min)
 
