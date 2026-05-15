@@ -5,3 +5,7 @@ export function add(a: number, b: number): number {
   const result = valA + valB;
   return result;
 }
+
+export function multiply(a: number, b: number): number {
+  return a * b;
+}

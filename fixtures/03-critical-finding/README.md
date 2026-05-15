@@ -1,6 +1,6 @@
 # E2E-03: Critical finding → inline comment
 
-A critical finding on a changed line should produce an inline review comment + REQUEST_CHANGES formal review.
+A critical finding on a changed line should produce an inline review comment and a single REQUEST_CHANGES formal review.
 
 ## Apply
 
@@ -15,5 +15,12 @@ A critical finding on a changed line should produce an inline review comment + R
 - [ ] Inline body contains hidden `<!-- mergewatch-inline -->` marker (verify via `gh api repos/<owner>/mergewatch-fixtures/pulls/<N>/comments`)
 - [ ] Summary comment shows `🟠 2/5 — Needs fixes` or `🔴 1/5 — Do not merge`
 - [ ] "Requires your attention" table lists the SQL Injection row with 🔴
-- [ ] Formal PR review state = **Changes requested**
-- [ ] Review has a non-empty body (REQUEST_CHANGES requires it)
+- [ ] Formal PR review state = **Changes requested** (single review event — NOT multiple COMMENTED reviews)
+- [ ] Review body is a single line that points at the summary comment, e.g. *"🔴 Critical issues found — see the full review in the summary comment above."*
+- [ ] Check run conclusion = `failure` with title like "N critical issues found"
+
+## Failure modes
+
+- ❌ Formal review state is `COMMENTED` instead of `CHANGES_REQUESTED` (regression of #139 — was the bug observed in mergewatch-fixtures PR #3)
+- ❌ Multiple COMMENTED reviews (one per inline comment) instead of one CHANGES_REQUESTED with bundled inlines
+- ❌ Review body is empty or matches the old multi-section verdict block — both are wrong; a one-line pointer is the target

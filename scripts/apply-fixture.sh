@@ -10,6 +10,9 @@
 #
 # Fixtures with SKIP_APPLY=true in their meta.env (reusing another PR) and
 # MANUAL_ONLY=true (no overlay, no PR) just print instructions and exit.
+# Fixtures with PUSH_TO_EXISTING_BRANCH=<branch> push a follow-up commit onto
+# an existing fixture branch (no new PR) — used for sequenced two-step
+# fixtures like E2E-18b.
 set -euo pipefail
 
 usage() {
@@ -50,6 +53,7 @@ fi
 # Comments (#) and blank lines are ignored.
 BRANCH=""; TITLE=""; BODY=""; DRAFT="false"
 SKIP_APPLY="false"; MANUAL_ONLY="false"; REUSES=""; POST_OPEN_HINT=""
+PUSH_TO_EXISTING_BRANCH=""; COMMIT_MESSAGE=""
 while IFS='=' read -r key value; do
   # strip trailing \r in case of CRLF
   value="${value%$'\r'}"
@@ -62,6 +66,8 @@ while IFS='=' read -r key value; do
     MANUAL_ONLY) MANUAL_ONLY="$value" ;;
     REUSES) REUSES="$value" ;;
     POST_OPEN_HINT) POST_OPEN_HINT="$value" ;;
+    PUSH_TO_EXISTING_BRANCH) PUSH_TO_EXISTING_BRANCH="$value" ;;
+    COMMIT_MESSAGE) COMMIT_MESSAGE="$value" ;;
     "" | \#*) ;;
   esac
 done < <(grep -v '^[[:space:]]*#' "$META" | grep '=')
@@ -86,6 +92,57 @@ $BODY
 
 See $FIXTURE_DIR/README.md for the next step (typically a PR comment or push).
 EOF
+  exit 0
+fi
+
+# --- step-2 fixtures: push another commit onto an existing branch ----------
+# Used by sequenced fixtures like E2E-18b that push a follow-up commit to the
+# branch opened by their predecessor (E2E-18a). No new branch, no new PR.
+if [ -n "$PUSH_TO_EXISTING_BRANCH" ]; then
+  if [ ! -d "$OVERLAY" ]; then
+    echo "Missing overlay directory: $OVERLAY" >&2
+    exit 1
+  fi
+  if ! git diff --quiet || ! git diff --cached --quiet; then
+    echo "Working tree has uncommitted changes. Commit or stash before re-running." >&2
+    exit 1
+  fi
+  echo "→ Pushing follow-up commit onto $PUSH_TO_EXISTING_BRANCH."
+  git fetch --prune origin --quiet
+  if ! git ls-remote --exit-code --heads origin "$PUSH_TO_EXISTING_BRANCH" >/dev/null 2>&1; then
+    echo "Remote branch $PUSH_TO_EXISTING_BRANCH does not exist. Apply the step-1 fixture first." >&2
+    exit 1
+  fi
+  if git show-ref --verify --quiet "refs/heads/$PUSH_TO_EXISTING_BRANCH"; then
+    git branch -D "$PUSH_TO_EXISTING_BRANCH" >/dev/null
+  fi
+  git checkout --quiet -b "$PUSH_TO_EXISTING_BRANCH" "origin/$PUSH_TO_EXISTING_BRANCH"
+  echo "→ Applying overlay from $OVERLAY."
+  find "$OVERLAY" -type f -print0 | while IFS= read -r -d '' src; do
+    rel="${src#$OVERLAY/}"
+    dest="$REPO_ROOT/$rel"
+    mkdir -p "$(dirname "$dest")"
+    cp "$src" "$dest"
+    echo "    + $rel"
+  done
+  git add -A
+  if git diff --cached --quiet; then
+    echo "Overlay produced no changes vs. current branch head — nothing to commit." >&2
+    exit 1
+  fi
+  MSG="${COMMIT_MESSAGE:-$TITLE}"
+  git commit --quiet -m "$MSG"
+  git push --quiet
+  PR_NUMBER="$(gh pr view "$PUSH_TO_EXISTING_BRANCH" --json number --jq .number 2>/dev/null || true)"
+  echo ""
+  echo "✓ Fixture $NAME pushed."
+  echo "  Branch: $PUSH_TO_EXISTING_BRANCH"
+  if [ -n "$PR_NUMBER" ]; then
+    echo "  PR:     https://github.com/$(gh repo view --json nameWithOwner --jq .nameWithOwner)/pull/$PR_NUMBER"
+  fi
+  echo ""
+  echo "Wait ~30-90s for MergeWatch re-review, then verify against:"
+  echo "  $FIXTURE_DIR/README.md"
   exit 0
 fi
 
