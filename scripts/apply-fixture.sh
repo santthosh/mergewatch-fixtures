@@ -115,6 +115,9 @@ fi
 
 # --- reset to baseline ------------------------------------------------------
 echo "→ Resetting to e2e-baseline."
+# Prune stale remote-tracking refs so --force-with-lease doesn't reject a
+# push to a branch we previously deleted via gh pr close --delete-branch.
+git fetch --prune origin --quiet
 # Drop to a detached HEAD first so deleting/recreating the fixture branch is safe.
 git checkout --quiet e2e-baseline
 git clean -fd >/dev/null
